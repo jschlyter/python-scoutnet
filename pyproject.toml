@@ -13,7 +13,7 @@ license = "BSD-2-Clause"
 repository = "https://github.com/jschlyter/python-scoutnet"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 requests = "^2.25.1"
 
 [tool.poetry.dev-dependencies]
