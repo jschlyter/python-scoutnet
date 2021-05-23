@@ -1,0 +1,24 @@
+# PEP 518: https://www.python.org/dev/peps/pep-0518/
+
+[tool.isort]
+profile = "black"
+
+[tool.poetry]
+name = "scoutnet"
+version = "0.0.0"
+readme = "README.md"
+description = "Scoutnet API bindings for Python"
+authors = ["Jakob Schlyter <jakob@schlyter.se>"]
+license = "BSD-2-Clause"
+repository = "https://github.com/jschlyter/python-scoutnet"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.25.1"
+
+[tool.poetry.dev-dependencies]
+PyYAML = "^5.4.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
