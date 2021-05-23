@@ -88,7 +88,7 @@ class ScoutnetMailinglist:
     title: str
     description: str
     aliases: List[str]
-    email_addresses: List[str]
+    recipients: List[str]
     members: Dict[int, ScoutnetMailinglistMember]
 
 
@@ -112,6 +112,30 @@ class ScoutnetClient(object):
         else:
             self.session_customlists = None
         self.logger = logging.getLogger("ScoutnetClient")
+
+    def dump(self, filename: str):
+        """Dump data to file"""
+        memberlist_data = client.memberlist()
+        customlists_data = client.customlists()
+
+        client.memberlist = lambda: memberlist_data
+        client.customlists = lambda: customlists_data
+
+        dump_data = {"memberlist": memberlist_data, "customlists": customlists_data}
+        with open(filename, "wt") as dump_file:
+            json.dump(dump_data, dump_file)
+
+    def restore(self, filename: str):
+        """Restore data from file"""
+
+        with open(filename, "rt") as dump_file:
+            dump_data = json.load(dump_file)
+
+        memberlist_data = dump_data["memberlist"]
+        customlists_data = dump_data["customlists"]
+
+        self.memberlist = lambda: memberlist_data
+        self.customlists = lambda: customlists_data
 
     def memberlist(self) -> Any:
         """Get raw memberlist"""
@@ -138,7 +162,7 @@ class ScoutnetClient(object):
             raise ValueError("list url not found")
         response = self.session_customlists.get(url)
         response.raise_for_status()
-        email_addresses = set()
+        recipients = set()
         members = {}
         data: Dict[str, Any] = response.json().get("data")
         title = list_data.get("title")
@@ -154,10 +178,10 @@ class ScoutnetClient(object):
                 )
                 members[member.member_no] = member
                 if member.email:
-                    email_addresses.add(member.email)
+                    recipients.add(member.email)
                 if member.extra_emails:
                     for extra_mail in member.extra_emails:
-                        email_addresses.add(extra_mail)
+                        recipients.add(extra_mail)
                         self.logger.debug(
                             "Additional address %s for user %s",
                             extra_mail,
@@ -172,7 +196,7 @@ class ScoutnetClient(object):
             id=list_data["list_email_key"],
             members=members,
             aliases=sorted(aliases),
-            email_addresses=sorted(list(email_addresses)),
+            recipients=sorted(list(recipients)),
             title=title,
             description=list_data.get("description"),
         )
