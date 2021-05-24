@@ -154,7 +154,9 @@ class ScoutnetClient(object):
     def get_list_url(self, list_id: str) -> str:
         return f"{self.endpoint}/group/customlists?list_id={list_id}"
 
-    def get_list(self, list_data: dict, fetch_members: bool = True) -> ScoutnetMailinglist:
+    def get_list(
+        self, list_data: dict, fetch_members: bool = True
+    ) -> ScoutnetMailinglist:
         url = list_data.get("link")
         # list_id = list_data.get('id')
         # url = self.get_list_url(list_id)
@@ -188,7 +190,7 @@ class ScoutnetClient(object):
                                 extra_mail,
                                 member.email,
                             )
-            recipients=sorted(list(recipients))
+            recipients = sorted(list(recipients))
         else:
             members = None
             recipients = None
@@ -216,7 +218,10 @@ class ScoutnetClient(object):
         return res
 
     def get_all_lists(
-        self, limit: int = None, fetch_members: bool = True, list_ids: Optional[Set] = None
+        self,
+        limit: int = None,
+        fetch_members: bool = True,
+        list_ids: Optional[Set] = None,
     ) -> Dict[int, ScoutnetMailinglist]:
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
@@ -227,7 +232,12 @@ class ScoutnetClient(object):
             count += 1
             mlist = self.get_list(list_data, fetch_members=fetch_members)
             if mlist.members:
-                self.logger.info("Fetched %s: %s (%d members)", mlist.id, mlist.title, len(mlist.members))
+                self.logger.info(
+                    "Fetched %s: %s (%d members)",
+                    mlist.id,
+                    mlist.title,
+                    len(mlist.members),
+                )
             else:
                 self.logger.info("Fetched %s: %s", mlist.id, mlist.title)
             if len(mlist.aliases) > 0:
