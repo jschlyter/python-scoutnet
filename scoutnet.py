@@ -84,7 +84,7 @@ class ScoutnetMailinglistMember:
 
 @dataclass(frozen=True)
 class ScoutnetMailinglist:
-    id: str
+    id: int
     title: str
     description: str
     aliases: List[str]
@@ -200,7 +200,7 @@ class ScoutnetClient(object):
         else:
             aliases = []
         return ScoutnetMailinglist(
-            id=list_data["list_email_key"],
+            id=int(list_data["id"]),
             aliases=sorted(aliases),
             members=members,
             recipients=recipients,
