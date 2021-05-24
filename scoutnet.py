@@ -88,8 +88,8 @@ class ScoutnetMailinglist:
     title: str
     description: str
     aliases: List[str]
-    recipients: List[str]
-    members: Dict[int, ScoutnetMailinglistMember]
+    recipients: Optional[List[str]] = None
+    members: Optional[Dict[int, ScoutnetMailinglistMember]] = None
 
 
 class ScoutnetClient(object):
@@ -154,49 +154,54 @@ class ScoutnetClient(object):
     def get_list_url(self, list_id: str) -> str:
         return f"{self.endpoint}/group/customlists?list_id={list_id}"
 
-    def get_list(self, list_data: dict) -> ScoutnetMailinglist:
+    def get_list(self, list_data: dict, fetch_members: bool = True) -> ScoutnetMailinglist:
         url = list_data.get("link")
         # list_id = list_data.get('id')
         # url = self.get_list_url(list_id)
         if url is None:
             raise ValueError("list url not found")
-        response = self.session_customlists.get(url)
-        response.raise_for_status()
         recipients = set()
         members = {}
-        data: Dict[str, Any] = response.json().get("data")
         title = list_data.get("title")
-        if len(data) > 0:
-            for (_, member_data) in data.items():
-                member = ScoutnetMailinglistMember.from_data(member_data)
-                self.logger.debug(
-                    'Adding member %s (%s %s) to list "%s"',
-                    member.email,
-                    member.first_name,
-                    member.last_name,
-                    title,
-                )
-                members[member.member_no] = member
-                if member.email:
-                    recipients.add(member.email)
-                if member.extra_emails:
-                    for extra_mail in member.extra_emails:
-                        recipients.add(extra_mail)
-                        self.logger.debug(
-                            "Additional address %s for user %s",
-                            extra_mail,
-                            member.email,
-                        )
+        if fetch_members:
+            response = self.session_customlists.get(url)
+            response.raise_for_status()
+            data: Dict[str, Any] = response.json().get("data")
+            if len(data) > 0:
+                for (_, member_data) in data.items():
+                    member = ScoutnetMailinglistMember.from_data(member_data)
+                    self.logger.debug(
+                        'Adding member %s (%s %s) to list "%s"',
+                        member.email,
+                        member.first_name,
+                        member.last_name,
+                        title,
+                    )
+                    members[member.member_no] = member
+                    if member.email:
+                        recipients.add(member.email)
+                    if member.extra_emails:
+                        for extra_mail in member.extra_emails:
+                            recipients.add(extra_mail)
+                            self.logger.debug(
+                                "Additional address %s for user %s",
+                                extra_mail,
+                                member.email,
+                            )
+            recipients=sorted(list(recipients))
+        else:
+            members = None
+            recipients = None
         list_aliases = list_data.get("aliases", {})
-        aliases = []
         if len(list_aliases) > 0:
-            for alias in list(set(list_aliases.values())):
-                aliases.append(alias)
+            aliases = list(set(list_aliases.values()))
+        else:
+            aliases = []
         return ScoutnetMailinglist(
             id=list_data["list_email_key"],
-            members=members,
             aliases=sorted(aliases),
-            recipients=sorted(list(recipients)),
+            members=members,
+            recipients=recipients,
             title=title,
             description=list_data.get("description"),
         )
@@ -211,19 +216,17 @@ class ScoutnetClient(object):
         return res
 
     def get_all_lists(
-        self, limit: int = None, list_ids: Optional[Set] = None
-    ) -> Dict[int, ScoutnetMailinglist]:
+        self, limit: int = None, fetch_members: bool = True) -> Dict[int, ScoutnetMailinglist]:
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
         count = 0
         for (list_id, list_data) in self.customlists().items():
-            if list_ids and int(list_id) not in list_ids:
-                continue
             count += 1
-            mlist = self.get_list(list_data)
-            self.logger.info(
-                "Fetched %s: %s (%d members)", mlist.id, mlist.title, len(mlist.members)
-            )
+            mlist = self.get_list(list_data, fetch_members=fetch_members)
+            if mlist.members:
+                self.logger.info("Fetched %s: %s (%d members)", mlist.id, mlist.title, len(mlist.members))
+            else:
+                self.logger.info("Fetched %s: %s", mlist.id, mlist.title)
             if len(mlist.aliases) > 0:
                 self.logger.debug("Including %s: %s", mlist.id, mlist.title)
                 all_mlists[int(list_id)] = mlist

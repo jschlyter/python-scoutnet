@@ -5,7 +5,7 @@ profile = "black"
 
 [tool.poetry]
 name = "scoutnet"
-version = "0.0.1"
+version = "0.1.0"
 readme = "README.md"
 description = "Scoutnet API bindings for Python"
 authors = ["Jakob Schlyter <jakob@schlyter.se>"]
