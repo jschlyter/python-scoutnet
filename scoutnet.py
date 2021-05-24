@@ -216,11 +216,14 @@ class ScoutnetClient(object):
         return res
 
     def get_all_lists(
-        self, limit: int = None, fetch_members: bool = True) -> Dict[int, ScoutnetMailinglist]:
+        self, limit: int = None, fetch_members: bool = True, list_ids: Optional[Set] = None
+    ) -> Dict[int, ScoutnetMailinglist]:
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
         count = 0
         for (list_id, list_data) in self.customlists().items():
+            if list_ids and int(list_id) not in list_ids:
+                continue
             count += 1
             mlist = self.get_list(list_data, fetch_members=fetch_members)
             if mlist.members:
