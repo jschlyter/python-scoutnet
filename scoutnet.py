@@ -29,6 +29,10 @@ class ScoutnetMember:
             ]
         )
 
+    @property
+    def display_name(self) -> str:
+        return " ".join(filter(None, [self.first_name, self.last_name]))
+
     @staticmethod
     def phone_to_e164(phone: Optional[str]) -> Optional[str]:
         if phone:
