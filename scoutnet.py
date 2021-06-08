@@ -224,7 +224,7 @@ class ScoutnetClient(object):
             int(k): ScoutnetMember.from_data(v)
             for k, v in self.memberlist()["data"].items()
         }
-        self.logger.info("Fetched %d members", len(res))
+        self.logger.debug("Fetched %d members", len(res))
         return res
 
     def get_all_lists(
@@ -242,14 +242,14 @@ class ScoutnetClient(object):
             count += 1
             mlist = self.get_list(list_data, fetch_members=fetch_members)
             if mlist.members:
-                self.logger.info(
+                self.logger.debug(
                     "Fetched %s: %s (%d members)",
                     mlist.id,
                     mlist.title,
                     len(mlist.members),
                 )
             else:
-                self.logger.info("Fetched %s: %s", mlist.id, mlist.title)
+                self.logger.debug("Fetched %s: %s", mlist.id, mlist.title)
             if len(mlist.aliases) > 0:
                 self.logger.debug("Including %s: %s", mlist.id, mlist.title)
                 all_mlists[int(list_id)] = mlist
