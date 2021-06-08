@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -14,6 +15,8 @@ class ScoutnetMember:
     first_name: Optional[str]
     last_name: Optional[str]
     contact_mobile_phone: Optional[str]
+    email: Optional[str]
+    contact_alt_email: Optional[str]
 
     def __repr__(self):
         return ", ".join(
@@ -22,6 +25,7 @@ class ScoutnetMember:
                 self.first_name,
                 self.last_name,
                 self.contact_mobile_phone or "",
+                self.email or "",
             ]
         )
 
@@ -51,6 +55,8 @@ class ScoutnetMember:
             contact_mobile_phone=cls.phone_to_e164(
                 cls.get_data("contact_mobile_phone", data)
             ),
+            email=cls.get_data("email", data),
+            contact_alt_email=cls.get_data("contact_alt_email", data),
         )
 
 
