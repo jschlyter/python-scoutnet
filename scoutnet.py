@@ -34,16 +34,21 @@ class ScoutnetMember:
         return " ".join(filter(None, [self.first_name, self.last_name]))
 
     @staticmethod
-    def phone_to_e164(phone: Optional[str]) -> Optional[str]:
-        if phone:
-            phone = re.sub(r"[\-\s]", "", phone)
-            phone = re.sub(r"^0", "+46", phone)
-            if re.match(r"^[1-9]", phone):
-                phone = f"+{phone}"
-            if not re.match(r"^\+\d{11,}$", phone):
-                logging.warning("Invalid phone number: %s", phone)
+    def phone_to_e164(
+        phone: Optional[str], context: Optional[str] = None
+    ) -> Optional[str]:
+        if res := phone:
+            res = re.sub(r"[\-\s]", "", res)
+            res = re.sub(r"^0", "+46", res)
+            if re.match(r"^[1-9]", res):
+                res = f"+{res}"
+            if not re.match(r"^\+\d{11,}$", res):
+                if context:
+                    logging.warning("Invalid phone number: %s (%s)", phone, context)
+                else:
+                    logging.warning("Invalid phone number: %s", phone)
                 return None
-        return phone
+        return res
 
     @staticmethod
     def get_data(field: str, data: dict):
@@ -57,7 +62,8 @@ class ScoutnetMember:
             first_name=cls.get_data("first_name", data),
             last_name=cls.get_data("last_name", data),
             contact_mobile_phone=cls.phone_to_e164(
-                cls.get_data("contact_mobile_phone", data)
+                phone=cls.get_data("contact_mobile_phone", data),
+                context=cls.get_data("member_no", data),
             ),
             email=cls.get_data("email", data),
             contact_alt_email=cls.get_data("contact_alt_email", data),
