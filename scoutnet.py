@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import requests
 
@@ -12,11 +12,11 @@ DEFAULT_API_ENDPOINT = "https://www.scoutnet.se/api"
 @dataclass(frozen=True)
 class ScoutnetMember:
     member_no: int
-    first_name: Optional[str]
-    last_name: Optional[str]
-    contact_mobile_phone: Optional[str]
-    email: Optional[str]
-    contact_alt_email: Optional[str]
+    first_name: str
+    last_name: str
+    contact_mobile_phone: str | None
+    email: str | None
+    contact_alt_email: str | None
 
     def __repr__(self):
         return ", ".join(
@@ -34,7 +34,7 @@ class ScoutnetMember:
         return " ".join(filter(None, [self.first_name, self.last_name]))
 
     @staticmethod
-    def phone_to_e164(phone: Optional[str]) -> Optional[str]:
+    def phone_to_e164(phone: str | None) -> str | None:
         if phone:
             phone = re.sub(r"[\-\s]", "", phone)
             phone = re.sub(r"^0", "+46", phone)
@@ -67,10 +67,10 @@ class ScoutnetMember:
 @dataclass(frozen=True)
 class ScoutnetMailinglistMember:
     member_no: int
-    first_name: Optional[str]
-    last_name: Optional[str]
-    email: Optional[str]
-    extra_emails: List[str] = field(default_factory=list)
+    first_name: str | None
+    last_name: str | None
+    email: str | None
+    extra_emails: list[str] = field(default_factory=list)
 
     @staticmethod
     def get_data(field: str, data: dict):
@@ -94,18 +94,18 @@ class ScoutnetMailinglist:
     id: int
     title: str
     description: str
-    aliases: List[str]
-    recipients: Optional[List[str]] = None
-    members: Optional[Dict[int, ScoutnetMailinglistMember]] = None
+    aliases: list[str]
+    recipients: list[str] | None = None
+    members: dict[int, ScoutnetMailinglistMember] | None = None
 
 
 class ScoutnetClient:
     def __init__(
         self,
         api_id: str,
-        api_endpoint: Optional[str] = None,
-        api_key_memberlist: Optional[str] = None,
-        api_key_customlists: Optional[str] = None,
+        api_endpoint: str | None = None,
+        api_key_memberlist: str | None = None,
+        api_key_customlists: str | None = None,
     ) -> None:
         self.endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         if api_key_memberlist:
@@ -120,7 +120,7 @@ class ScoutnetClient:
             self.session_customlists = None
         self.logger = logging.getLogger("ScoutnetClient")
 
-    def dump(self, filename: str):
+    def dump(self, filename: str) -> None:
         """Dump data to file"""
         memberlist_data = self.memberlist()
         customlists_data = self.customlists()
@@ -132,7 +132,7 @@ class ScoutnetClient:
         with open(filename, "w") as dump_file:
             json.dump(dump_data, dump_file)
 
-    def restore(self, filename: str):
+    def restore(self, filename: str) -> None:
         """Restore data from file"""
 
         with open(filename) as dump_file:
@@ -175,7 +175,7 @@ class ScoutnetClient:
         if fetch_members:
             response = self.session_customlists.get(url)
             response.raise_for_status()
-            data: Dict[str, Any] = response.json().get("data")
+            data: dict[str, Any] = response.json().get("data")
             if len(data) > 0:
                 for _, member_data in data.items():
                     member = ScoutnetMailinglistMember.from_data(member_data)
@@ -212,7 +212,7 @@ class ScoutnetClient:
             description=list_data.get("description"),
         )
 
-    def get_all_members(self) -> Dict[int, ScoutnetMember]:
+    def get_all_members(self) -> dict[int, ScoutnetMember]:
         """Fetch all members from Scoutnet"""
         res = {
             int(k): ScoutnetMember.from_data(v)
@@ -225,8 +225,8 @@ class ScoutnetClient:
         self,
         limit: int = None,
         fetch_members: bool = True,
-        list_ids: Optional[Set] = None,
-    ) -> Dict[int, ScoutnetMailinglist]:
+        list_ids: set | None = None,
+    ) -> dict[int, ScoutnetMailinglist]:
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
         count = 0
