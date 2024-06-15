@@ -79,10 +79,7 @@ class ScoutnetMailinglistMember:
 
     @classmethod
     def from_data(cls, data):
-        if "email" in data:
-            email = cls.get_data("email", data).lower()
-        else:
-            email = None
+        email = cls.get_data("email", data).lower() if "email" in data else None
         return cls(
             member_no=int(cls.get_data("member_no", data)),
             first_name=cls.get_data("first_name", data),
@@ -102,7 +99,7 @@ class ScoutnetMailinglist:
     members: Optional[Dict[int, ScoutnetMailinglistMember]] = None
 
 
-class ScoutnetClient(object):
+class ScoutnetClient:
     def __init__(
         self,
         api_id: str,
@@ -125,20 +122,20 @@ class ScoutnetClient(object):
 
     def dump(self, filename: str):
         """Dump data to file"""
-        memberlist_data = client.memberlist()
-        customlists_data = client.customlists()
+        memberlist_data = self.memberlist()
+        customlists_data = self.customlists()
 
-        client.memberlist = lambda: memberlist_data
-        client.customlists = lambda: customlists_data
+        self.memberlist = lambda: memberlist_data
+        self.customlists = lambda: customlists_data
 
         dump_data = {"memberlist": memberlist_data, "customlists": customlists_data}
-        with open(filename, "wt") as dump_file:
+        with open(filename, "w") as dump_file:
             json.dump(dump_data, dump_file)
 
     def restore(self, filename: str):
         """Restore data from file"""
 
-        with open(filename, "rt") as dump_file:
+        with open(filename) as dump_file:
             dump_data = json.load(dump_file)
 
         memberlist_data = dump_data["memberlist"]
@@ -180,7 +177,7 @@ class ScoutnetClient(object):
             response.raise_for_status()
             data: Dict[str, Any] = response.json().get("data")
             if len(data) > 0:
-                for (_, member_data) in data.items():
+                for _, member_data in data.items():
                     member = ScoutnetMailinglistMember.from_data(member_data)
                     self.logger.debug(
                         'Adding member %s (%s %s) to list "%s"',
@@ -205,10 +202,7 @@ class ScoutnetClient(object):
             members = None
             recipients = None
         list_aliases = list_data.get("aliases", {})
-        if len(list_aliases) > 0:
-            aliases = list(set(list_aliases.values()))
-        else:
-            aliases = []
+        aliases = list(set(list_aliases.values())) if len(list_aliases) > 0 else []
         return ScoutnetMailinglist(
             id=int(list_data["id"]),
             aliases=sorted(aliases),
@@ -236,7 +230,7 @@ class ScoutnetClient(object):
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
         count = 0
-        for (list_id, list_data) in self.customlists().items():
+        for list_id, list_data in self.customlists().items():
             if list_ids and int(list_id) not in list_ids:
                 continue
             count += 1
