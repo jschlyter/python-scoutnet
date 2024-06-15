@@ -1,96 +1,82 @@
+import datetime
 import json
 import logging
 import re
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Self
 
 import requests
+from pydantic import BaseModel, EmailStr, field_validator
 
 DEFAULT_API_ENDPOINT = "https://www.scoutnet.se/api"
 
 
-@dataclass(frozen=True)
-class ScoutnetMember:
+class ScoutnetMember(BaseModel):
     member_no: int
     first_name: str
     last_name: str
-    contact_mobile_phone: str | None
-    email: str | None
-    contact_alt_email: str | None
-
-    def __repr__(self):
-        return ", ".join(
-            [
-                str(self.member_no),
-                self.first_name,
-                self.last_name,
-                self.contact_mobile_phone or "",
-                self.email or "",
-            ]
-        )
+    date_of_birth: datetime.date
+    group: str
+    contact_mobile_phone: str | None = None
+    email: EmailStr | None = None
+    contact_alt_email: EmailStr | None = None
 
     @property
     def display_name(self) -> str:
         return " ".join(filter(None, [self.first_name, self.last_name]))
 
-    @staticmethod
-    def phone_to_e164(phone: str | None) -> str | None:
-        if phone:
+    @field_validator("contact_mobile_phone")
+    @classmethod
+    def phone_to_e164(cls, v: Any):
+        phone = v
+        if isinstance(phone, str) and phone:
             phone = re.sub(r"[\-\s]", "", phone)
             phone = re.sub(r"^0", "+46", phone)
             if re.match(r"^[1-9]", phone):
                 phone = f"+{phone}"
             if not re.match(r"^\+\d{11,}$", phone):
-                logging.warning("Invalid phone number: %s", phone)
-                return None
+                raise ValueError(f"Invalid phone number: {phone}")
         return phone
 
-    @staticmethod
-    def get_data(field: str, data: dict):
-        if field in data:
-            return data[field]["value"]
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v: Any):
+        return v.lower() if isinstance(v, str) else None
+
+    @field_validator("contact_alt_email")
+    @classmethod
+    def lowercase_contact_alt_email(cls, v: Any):
+        return v.lower() if isinstance(v, str) else None
 
     @classmethod
-    def from_data(cls, data):
-        return cls(
-            member_no=int(cls.get_data("member_no", data)),
-            first_name=cls.get_data("first_name", data),
-            last_name=cls.get_data("last_name", data),
-            contact_mobile_phone=cls.phone_to_e164(
-                cls.get_data("contact_mobile_phone", data)
-            ),
-            email=cls.get_data("email", data),
-            contact_alt_email=cls.get_data("contact_alt_email", data),
+    def data_validate(cls, data) -> Self:
+        return cls.model_validate(
+            {k: v.get("value") for k, v in data.items() if "value" in v}
         )
 
 
-@dataclass(frozen=True)
-class ScoutnetMailinglistMember:
+class ScoutnetMailinglistMember(BaseModel):
     member_no: int
-    first_name: str | None
-    last_name: str | None
-    email: str | None
-    extra_emails: list[str] = field(default_factory=list)
+    first_name: str
+    last_name: str
+    email: str | None = None
+    extra_emails: list[str]
 
-    @staticmethod
-    def get_data(field: str, data: dict):
-        if field in data:
-            return data[field]["value"]
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v: Any):
+        return v.lower() if isinstance(v, str) else None
+
+    @field_validator("extra_emails")
+    @classmethod
+    def lowercase_extra_emails(cls, v: Any):
+        return [x.lower() for x in v] if isinstance(v, list) else None
 
     @classmethod
-    def from_data(cls, data):
-        email = cls.get_data("email", data).lower() if "email" in data else None
-        return cls(
-            member_no=int(cls.get_data("member_no", data)),
-            first_name=cls.get_data("first_name", data),
-            last_name=cls.get_data("last_name", data),
-            email=email,
-            extra_emails=[x.lower() for x in data["extra_emails"]["value"]],
-        )
+    def data_validate(cls, data) -> Self:
+        return cls.model_validate({k: v.get("value") for k, v in data.items()})
 
 
-@dataclass(frozen=True)
-class ScoutnetMailinglist:
+class ScoutnetMailinglist(BaseModel):
     id: int
     title: str
     description: str
@@ -178,7 +164,7 @@ class ScoutnetClient:
             data: dict[str, Any] = response.json().get("data")
             if len(data) > 0:
                 for _, member_data in data.items():
-                    member = ScoutnetMailinglistMember.from_data(member_data)
+                    member = ScoutnetMailinglistMember.data_validate(member_data)
                     self.logger.debug(
                         'Adding member %s (%s %s) to list "%s"',
                         member.email,
@@ -215,7 +201,7 @@ class ScoutnetClient:
     def get_all_members(self) -> dict[int, ScoutnetMember]:
         """Fetch all members from Scoutnet"""
         res = {
-            int(k): ScoutnetMember.from_data(v)
+            int(k): ScoutnetMember.data_validate(v)
             for k, v in self.memberlist()["data"].items()
         }
         self.logger.debug("Fetched %d members", len(res))

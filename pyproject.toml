@@ -2,7 +2,7 @@
 
 [tool.poetry]
 name = "scoutnet"
-version = "1.1.2"
+version = "1.2.0"
 readme = "README.md"
 description = "Scoutnet API bindings for Python"
 authors = ["Jakob Schlyter <jakob@schlyter.se>"]
@@ -12,9 +12,11 @@ repository = "https://github.com/jschlyter/python-scoutnet"
 [tool.poetry.dependencies]
 python = "^3.11"
 requests = "^2.25.1"
+pydantic = {extras = ["email"], version = "^2.7.4"}
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.4.9"
+pyyaml = "^6.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
