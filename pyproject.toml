@@ -46,8 +46,4 @@ ignore = ["E501", "I001", "SIM102"]
 exclude = ["examples/*"]
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "scoutnet",
-]
 combine-as-imports = true
-split-on-trailing-comma = false
