@@ -1,11 +1,8 @@
 # PEP 518: https://www.python.org/dev/peps/pep-0518/
 
-[tool.isort]
-profile = "black"
-
 [tool.poetry]
 name = "scoutnet"
-version = "1.1.2"
+version = "1.2.0"
 readme = "README.md"
 description = "Scoutnet API bindings for Python"
 authors = ["Jakob Schlyter <jakob@schlyter.se>"]
@@ -13,12 +10,40 @@ license = "BSD-2-Clause"
 repository = "https://github.com/jschlyter/python-scoutnet"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.11"
 requests = "^2.25.1"
+pydantic = {extras = ["email"], version = "^2.7.4"}
+pydantic-extra-types = "^2.8.2"
+phonenumbers = "^8.13.39"
 
-[tool.poetry.dev-dependencies]
-PyYAML = "^5.4.1"
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.4.9"
+pyyaml = "^6.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+ignore = ["E501", "I001", "SIM102"]
+exclude = ["examples/*"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

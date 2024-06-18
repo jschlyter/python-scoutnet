@@ -1,120 +1,21 @@
 import json
 import logging
-import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import requests
+
+from .models import ScoutnetMailinglist, ScoutnetMailinglistMember, ScoutnetMember
 
 DEFAULT_API_ENDPOINT = "https://www.scoutnet.se/api"
 
 
-@dataclass(frozen=True)
-class ScoutnetMember:
-    member_no: int
-    first_name: Optional[str]
-    last_name: Optional[str]
-    contact_mobile_phone: Optional[str]
-    email: Optional[str]
-    contact_alt_email: Optional[str]
-
-    def __repr__(self):
-        return ", ".join(
-            [
-                str(self.member_no),
-                self.first_name,
-                self.last_name,
-                self.contact_mobile_phone or "",
-                self.email or "",
-            ]
-        )
-
-    @property
-    def display_name(self) -> str:
-        return " ".join(filter(None, [self.first_name, self.last_name]))
-
-    @staticmethod
-    def phone_to_e164(
-        phone: Optional[str], context: Optional[str] = None
-    ) -> Optional[str]:
-        if res := phone:
-            res = re.sub(r"[\-\s]", "", res)
-            res = re.sub(r"^0", "+46", res)
-            if re.match(r"^[1-9]", res):
-                res = f"+{res}"
-            if not re.match(r"^\+\d{11,}$", res):
-                if context:
-                    logging.warning("Invalid phone number: %s (%s)", phone, context)
-                else:
-                    logging.warning("Invalid phone number: %s", phone)
-                return None
-        return res
-
-    @staticmethod
-    def get_data(field: str, data: dict):
-        if field in data:
-            return data[field]["value"]
-
-    @classmethod
-    def from_data(cls, data):
-        return cls(
-            member_no=int(cls.get_data("member_no", data)),
-            first_name=cls.get_data("first_name", data),
-            last_name=cls.get_data("last_name", data),
-            contact_mobile_phone=cls.phone_to_e164(
-                phone=cls.get_data("contact_mobile_phone", data),
-                context=cls.get_data("member_no", data),
-            ),
-            email=cls.get_data("email", data),
-            contact_alt_email=cls.get_data("contact_alt_email", data),
-        )
-
-
-@dataclass(frozen=True)
-class ScoutnetMailinglistMember:
-    member_no: int
-    first_name: Optional[str]
-    last_name: Optional[str]
-    email: Optional[str]
-    extra_emails: List[str] = field(default_factory=list)
-
-    @staticmethod
-    def get_data(field: str, data: dict):
-        if field in data:
-            return data[field]["value"]
-
-    @classmethod
-    def from_data(cls, data):
-        if "email" in data:
-            email = cls.get_data("email", data).lower()
-        else:
-            email = None
-        return cls(
-            member_no=int(cls.get_data("member_no", data)),
-            first_name=cls.get_data("first_name", data),
-            last_name=cls.get_data("last_name", data),
-            email=email,
-            extra_emails=[x.lower() for x in data["extra_emails"]["value"]],
-        )
-
-
-@dataclass(frozen=True)
-class ScoutnetMailinglist:
-    id: int
-    title: str
-    description: str
-    aliases: List[str]
-    recipients: Optional[List[str]] = None
-    members: Optional[Dict[int, ScoutnetMailinglistMember]] = None
-
-
-class ScoutnetClient(object):
+class ScoutnetClient:
     def __init__(
         self,
         api_id: str,
-        api_endpoint: Optional[str] = None,
-        api_key_memberlist: Optional[str] = None,
-        api_key_customlists: Optional[str] = None,
+        api_endpoint: str | None = None,
+        api_key_memberlist: str | None = None,
+        api_key_customlists: str | None = None,
     ) -> None:
         self.endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         if api_key_memberlist:
@@ -129,22 +30,22 @@ class ScoutnetClient(object):
             self.session_customlists = None
         self.logger = logging.getLogger("ScoutnetClient")
 
-    def dump(self, filename: str):
+    def dump(self, filename: str) -> None:
         """Dump data to file"""
-        memberlist_data = client.memberlist()
-        customlists_data = client.customlists()
+        memberlist_data = self.memberlist()
+        customlists_data = self.customlists()
 
-        client.memberlist = lambda: memberlist_data
-        client.customlists = lambda: customlists_data
+        self.memberlist = lambda: memberlist_data
+        self.customlists = lambda: customlists_data
 
         dump_data = {"memberlist": memberlist_data, "customlists": customlists_data}
-        with open(filename, "wt") as dump_file:
+        with open(filename, "w") as dump_file:
             json.dump(dump_data, dump_file)
 
-    def restore(self, filename: str):
+    def restore(self, filename: str) -> None:
         """Restore data from file"""
 
-        with open(filename, "rt") as dump_file:
+        with open(filename) as dump_file:
             dump_data = json.load(dump_file)
 
         memberlist_data = dump_data["memberlist"]
@@ -156,6 +57,8 @@ class ScoutnetClient(object):
     def memberlist(self) -> Any:
         """Get raw memberlist"""
         url = f"{self.endpoint}/group/memberlist"
+        if not self.session_memberlist:
+            raise RuntimeError("No API key for memberlist")
         response = self.session_memberlist.get(url)
         response.raise_for_status()
         return response.json()
@@ -163,6 +66,8 @@ class ScoutnetClient(object):
     def customlists(self) -> Any:
         """Get raw customlists"""
         url = f"{self.endpoint}/group/customlists"
+        if not self.session_customlists:
+            raise RuntimeError("No API key for customlists")
         response = self.session_customlists.get(url)
         response.raise_for_status()
         return response.json()
@@ -182,12 +87,14 @@ class ScoutnetClient(object):
         members = {}
         title = list_data.get("title")
         if fetch_members:
+            if not self.session_customlists:
+                raise RuntimeError("No API key for customlists")
             response = self.session_customlists.get(url)
             response.raise_for_status()
-            data: Dict[str, Any] = response.json().get("data")
+            data: dict[str, Any] = response.json().get("data")
             if len(data) > 0:
-                for (_, member_data) in data.items():
-                    member = ScoutnetMailinglistMember.from_data(member_data)
+                for _, member_data in data.items():
+                    member = ScoutnetMailinglistMember.data_validate(member_data)
                     self.logger.debug(
                         'Adding member %s (%s %s) to list "%s"',
                         member.email,
@@ -211,10 +118,7 @@ class ScoutnetClient(object):
             members = None
             recipients = None
         list_aliases = list_data.get("aliases", {})
-        if len(list_aliases) > 0:
-            aliases = list(set(list_aliases.values()))
-        else:
-            aliases = []
+        aliases = list(set(list_aliases.values())) if len(list_aliases) > 0 else []
         return ScoutnetMailinglist(
             id=int(list_data["id"]),
             aliases=sorted(aliases),
@@ -224,10 +128,10 @@ class ScoutnetClient(object):
             description=list_data.get("description"),
         )
 
-    def get_all_members(self) -> Dict[int, ScoutnetMember]:
+    def get_all_members(self) -> dict[int, ScoutnetMember]:
         """Fetch all members from Scoutnet"""
         res = {
-            int(k): ScoutnetMember.from_data(v)
+            int(k): ScoutnetMember.data_validate(v)
             for k, v in self.memberlist()["data"].items()
         }
         self.logger.debug("Fetched %d members", len(res))
@@ -235,14 +139,14 @@ class ScoutnetClient(object):
 
     def get_all_lists(
         self,
-        limit: int = None,
+        limit: int | None = None,
         fetch_members: bool = True,
-        list_ids: Optional[Set] = None,
-    ) -> Dict[int, ScoutnetMailinglist]:
+        list_ids: set | None = None,
+    ) -> dict[int, ScoutnetMailinglist]:
         """Fetch all mailing lists from Scoutnet"""
         all_mlists = {}
         count = 0
-        for (list_id, list_data) in self.customlists().items():
+        for list_id, list_data in self.customlists().items():
             if list_ids and int(list_id) not in list_ids:
                 continue
             count += 1
