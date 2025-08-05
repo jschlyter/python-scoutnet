@@ -9,10 +9,10 @@ authors = [{name="Jakob Schlyter", email = "jakob@schlyter.se"}]
 license = "BSD-2-Clause"
 requires-python = ">=3.13,<4.0"
 dependencies = [
+    "httpx>=0.28.1",
     "phonenumbers>=9.0.10",
     "pydantic-extra-types>=2.10.5",
     "pydantic[email]>=2.11.7",
-    "requests>=2.32.4",
 ]
 
 [project.urls]
