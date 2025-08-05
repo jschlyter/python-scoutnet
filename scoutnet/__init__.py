@@ -1,4 +1,4 @@
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from .client import (  # noqa
     ScoutnetClient,
@@ -7,4 +7,7 @@ from .client import (  # noqa
     ScoutnetMember,
 )
 
-__version__ = version("scoutnet")
+try:
+    __version__ = version("scoutnet")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
