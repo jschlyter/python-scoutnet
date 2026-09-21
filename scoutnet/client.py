@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any
 
-import httpx
+import httpx2
 
 from .models import ScoutnetMailinglist, ScoutnetMailinglistMember, ScoutnetMember
 
@@ -19,12 +19,12 @@ class ScoutnetClient:
     ) -> None:
         self.endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         if api_key_memberlist:
-            self.session_memberlist = httpx.Client()
+            self.session_memberlist = httpx2.Client(http2=True)
             self.session_memberlist.auth = (str(api_id), api_key_memberlist)
         else:
             self.session_memberlist = None
         if api_key_customlists:
-            self.session_customlists = httpx.Client()
+            self.session_customlists = httpx2.Client(http2=True)
             self.session_customlists.auth = (str(api_id), api_key_customlists)
         else:
             self.session_customlists = None
