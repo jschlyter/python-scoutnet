@@ -17,6 +17,7 @@ class ScoutnetClient:
         api_key_memberlist: str | None = None,
         api_key_customlists: str | None = None,
     ) -> None:
+        self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.endpoint = api_endpoint or DEFAULT_API_ENDPOINT
         if api_key_memberlist:
             self.session_memberlist = httpx2.Client(http2=True)
@@ -28,7 +29,6 @@ class ScoutnetClient:
             self.session_customlists.auth = (str(api_id), api_key_customlists)
         else:
             self.session_customlists = None
-        self.logger = logging.getLogger("ScoutnetClient")
 
     def dump(self, filename: str) -> None:
         """Dump data to file"""
