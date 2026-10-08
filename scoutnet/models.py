@@ -23,6 +23,7 @@ class ScoutnetPaymentStatus(StrEnum):
     UNPAID_OVERDUE = "unpaid_overdue"
     UNPAID_OVERDUE_REMINDED = "unpaid_overdue_reminded"
     PAID_PARTIAL_CREDIT = "paid_partial_credit"
+    TRANSFERRED = "transferred"
 
 
 class ScoutnetBaseModel(BaseModel):
