@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 import httpx2
@@ -29,17 +31,14 @@ class ScoutnetClient:
         self.memberlist_data = None
         self.customlists_data = None
 
-        if api_key_memberlist:
-            self.httpx2_client_memberlist = httpx2.AsyncClient(http2=True)
-            self.httpx2_client_memberlist.auth = (str(api_id), api_key_memberlist)
-        else:
-            self.httpx2_client_memberlist = None
+        self.httpx2_client = httpx2.AsyncClient(http2=True)
 
-        if api_key_customlists:
-            self.httpx2_client_customlists = httpx2.AsyncClient(http2=True)
-            self.httpx2_client_customlists.auth = (str(api_id), api_key_customlists)
-        else:
-            self.httpx2_client_customlists = None
+        self.memberlist_auth = (
+            (str(api_id), api_key_memberlist) if api_key_memberlist else None
+        )
+        self.customlists_auth = (
+            (str(api_id), api_key_customlists) if api_key_customlists else None
+        )
 
     async def dump(self, filename: str) -> None:
         """Dump data to file"""
@@ -69,10 +68,10 @@ class ScoutnetClient:
         """Get raw memberlist"""
 
         if self.memberlist_data is None or force:
-            if not self.httpx2_client_memberlist:
+            if not self.memberlist_auth:
                 raise RuntimeError("No API key for memberlist")
             url = f"{self.endpoint}/group/memberlist"
-            response = await self.httpx2_client_memberlist.get(url)
+            response = await self.httpx2_client.get(url, auth=self.memberlist_auth)
             response.raise_for_status()
             self.memberlist_data = response.json()
 
@@ -82,17 +81,14 @@ class ScoutnetClient:
         """Get raw customlists"""
 
         if self.customlists_data is None or force:
-            if not self.httpx2_client_customlists:
+            if not self.customlists_auth:
                 raise RuntimeError("No API key for customlists")
             url = f"{self.endpoint}/group/customlists"
-            response = await self.httpx2_client_customlists.get(url)
+            response = await self.httpx2_client.get(url, auth=self.customlists_auth)
             response.raise_for_status()
             self.customlists_data = response.json()
 
         return self.customlists_data
-
-    def get_list_url(self, list_id: str) -> str:
-        return f"{self.endpoint}/group/customlists?list_id={list_id}"
 
     async def get_list(
         self, list_data: dict, fetch_members: bool = True
@@ -108,9 +104,9 @@ class ScoutnetClient:
         title = list_data.get("title")
 
         if fetch_members:
-            if not self.httpx2_client_customlists:
+            if not self.customlists_auth:
                 raise RuntimeError("No API key for customlists")
-            response = await self.httpx2_client_customlists.get(url)
+            response = await self.httpx2_client.get(url, auth=self.customlists_auth)
             response.raise_for_status()
             data: dict[str, Any] = response.json().get("data")
             if len(data) > 0:
@@ -144,11 +140,11 @@ class ScoutnetClient:
 
         return ScoutnetMailinglist(
             id=int(list_data["id"]),
-            aliases=sorted(aliases),
-            members=members,
-            recipients=recipients,
             title=title,
             description=list_data.get("description"),
+            aliases=sorted(aliases),
+            recipients=recipients,
+            members=members,
         )
 
     async def get_all_members(
@@ -172,34 +168,50 @@ class ScoutnetClient:
         fetch_members: bool = True,
         list_ids: set[int] | None = None,
         force: bool = False,
+        max_tasks: int = 10,
     ) -> ScoutnetMailinglistCollection:
-        """Fetch all mailing lists from Scoutnet"""
+        """Fetch all mailing lists from Scoutnet, using up to max_tasks concurrent tasks"""
 
-        res = []
-        count = 0
+        selected = [
+            list_data
+            for list_id, list_data in (
+                await self._get_raw_customlists(force=force)
+            ).items()
+            if not list_ids or int(list_id) in list_ids
+        ]
+        if limit is not None:
+            selected = selected[:limit]
 
-        for list_id, list_data in (
-            await self._get_raw_customlists(force=force)
-        ).items():
-            if list_ids and int(list_id) not in list_ids:
-                continue
-            count += 1
-            mlist = await self.get_list(list_data, fetch_members=fetch_members)
+        semaphore = asyncio.Semaphore(max_tasks)
+
+        async def fetch(list_data: Any) -> ScoutnetMailinglist:
+            async with semaphore:
+                self.logger.info(
+                    "Fetching list %s: %s",
+                    list_data["id"],
+                    list_data.get("title"),
+                )
+                t1 = time.perf_counter()
+                mlist = await self.get_list(list_data, fetch_members=fetch_members)
+                t2 = time.perf_counter()
             if mlist.members:
                 self.logger.debug(
-                    "Fetched %s: %s (%d members)",
+                    "Fetched %s: %s (%d members) in %.2f seconds",
                     mlist.id,
                     mlist.title,
                     len(mlist.members),
+                    t2 - t1,
                 )
             else:
                 self.logger.debug("Fetched %s: %s", mlist.id, mlist.title)
+            return mlist
+
+        res = []
+        for mlist in await asyncio.gather(*(fetch(d) for d in selected)):
             if len(mlist.aliases) > 0:
                 self.logger.debug("Including %s: %s", mlist.id, mlist.title)
                 res.append(mlist)
             else:
                 self.logger.debug("Excluding %s: %s", mlist.id, mlist.title)
-            if limit is not None and count >= limit:
-                break
 
         return ScoutnetMailinglistCollection(lists=res)
