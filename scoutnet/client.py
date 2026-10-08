@@ -25,26 +25,27 @@ class ScoutnetClient:
     ) -> None:
         self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.endpoint = api_endpoint or DEFAULT_API_ENDPOINT
+
+        self.memberlist_data = None
+        self.customlists_data = None
+
         if api_key_memberlist:
             self.httpx2_client_memberlist = httpx2.Client(http2=True)
             self.httpx2_client_memberlist.auth = (str(api_id), api_key_memberlist)
         else:
             self.httpx2_client_memberlist = None
+
         if api_key_customlists:
             self.httpx2_client_customlists = httpx2.Client(http2=True)
             self.httpx2_client_customlists.auth = (str(api_id), api_key_customlists)
         else:
             self.httpx2_client_customlists = None
-        self.logger = logging.getLogger("ScoutnetClient")
 
     def dump(self, filename: str) -> None:
         """Dump data to file"""
 
-        memberlist_data = self.memberlist()
-        customlists_data = self.customlists()
-
-        self.memberlist = lambda: memberlist_data
-        self.customlists = lambda: customlists_data
+        memberlist_data = self._get_raw_memberlist()
+        customlists_data = self._get_raw_customlists()
 
         dump_data = {"memberlist": memberlist_data, "customlists": customlists_data}
         with open(filename, "w") as dump_file:
@@ -56,36 +57,39 @@ class ScoutnetClient:
         with open(filename) as dump_file:
             dump_data = json.load(dump_file)
 
-        memberlist_data = dump_data["memberlist"]
-        customlists_data = dump_data["customlists"]
+        self.memberlist_data = dump_data["memberlist"]
+        self.customlists_data = dump_data["customlists"]
 
-        self.memberlist = lambda: memberlist_data
-        self.customlists = lambda: customlists_data
+    def reset(self) -> None:
+        """Reset cached data"""
+        self.memberlist_data = None
+        self.customlists_data = None
 
-    def memberlist(self) -> Any:
+    def _get_raw_memberlist(self, force: bool = False) -> Any:
         """Get raw memberlist"""
 
-        url = f"{self.endpoint}/group/memberlist"
+        if self.memberlist_data is None or force:
+            if not self.httpx2_client_memberlist:
+                raise RuntimeError("No API key for memberlist")
+            url = f"{self.endpoint}/group/memberlist"
+            response = self.httpx2_client_memberlist.get(url)
+            response.raise_for_status()
+            self.memberlist_data = response.json()
 
-        if not self.httpx2_client_memberlist:
-            raise RuntimeError("No API key for memberlist")
+        return self.memberlist_data
 
-        response = self.httpx2_client_memberlist.get(url)
-        response.raise_for_status()
-
-        return response.json()
-
-    def customlists(self) -> Any:
+    def _get_raw_customlists(self, force: bool = False) -> Any:
         """Get raw customlists"""
 
-        url = f"{self.endpoint}/group/customlists"
-        if not self.httpx2_client_customlists:
-            raise RuntimeError("No API key for customlists")
+        if self.customlists_data is None or force:
+            if not self.httpx2_client_customlists:
+                raise RuntimeError("No API key for customlists")
+            url = f"{self.endpoint}/group/customlists"
+            response = self.httpx2_client_customlists.get(url)
+            response.raise_for_status()
+            self.customlists_data = response.json()
 
-        response = self.httpx2_client_customlists.get(url)
-        response.raise_for_status()
-
-        return response.json()
+        return self.customlists_data
 
     def get_list_url(self, list_id: str) -> str:
         return f"{self.endpoint}/group/customlists?list_id={list_id}"
@@ -147,11 +151,15 @@ class ScoutnetClient:
             description=list_data.get("description"),
         )
 
-    def get_all_members(self) -> ScoutnetMemberCollection:
+    def get_all_members(
+        self,
+        force: bool = False,
+    ) -> ScoutnetMemberCollection:
         """Fetch all members from Scoutnet"""
 
         res = [
-            ScoutnetMember.data_validate(v) for v in self.memberlist()["data"].values()
+            ScoutnetMember.data_validate(v)
+            for v in self._get_raw_memberlist(force=force)["data"].values()
         ]
 
         self.logger.debug("Fetched %d members", len(res))
@@ -162,14 +170,15 @@ class ScoutnetClient:
         self,
         limit: int | None = None,
         fetch_members: bool = True,
-        list_ids: set | None = None,
+        list_ids: set[int] | None = None,
+        force: bool = False,
     ) -> ScoutnetMailinglistCollection:
         """Fetch all mailing lists from Scoutnet"""
 
         res = []
         count = 0
 
-        for list_id, list_data in self.customlists().items():
+        for list_id, list_data in self._get_raw_customlists(force=force).items():
             if list_ids and int(list_id) not in list_ids:
                 continue
             count += 1
