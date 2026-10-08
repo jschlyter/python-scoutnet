@@ -186,7 +186,7 @@ class ScoutnetClient:
 
         async def fetch(list_data: Any) -> ScoutnetMailinglist:
             async with semaphore:
-                self.logger.info(
+                self.logger.debug(
                     "Fetching list %s: %s",
                     list_data["id"],
                     list_data.get("title"),
