@@ -3,8 +3,10 @@ from importlib.metadata import PackageNotFoundError, version
 from .client import (  # noqa
     ScoutnetClient,
     ScoutnetMailinglist,
+    ScoutnetMailinglistCollection,
     ScoutnetMailinglistMember,
     ScoutnetMember,
+    ScoutnetMemberCollection,
 )
 
 try:
